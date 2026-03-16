@@ -1,0 +1,40 @@
+stages:
+  - build
+  - deploy
+  
+build_backend:
+  stage: build
+  image: docker:27.1
+  variables:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  script:
+    - cd backend
+    - docker build -t backend-app:latest -f Dockerfile .
+    - docker tag backend-app:latest backend-app:$CI_COMMIT_SHORT_SHA
+
+build_frontend:
+  stage: build
+  image: docker:27.1
+  variables:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  script:
+    - cd frontend
+    - docker build -t frontend-app:latest -f Dockerfile .
+    - docker stop frontend || true
+    - docker rm frontend || true
+    - docker ps -q --filter publish=80 | xargs -r docker stop || true
+    - docker ps -q --filter publish=80 | xargs -r docker rm -f || true
+    - docker run -d --name frontend -p 80:80 frontend-app:latest
+
+deploy-staging:
+  stage: deploy
+  image: docker:27.1
+  variables:
+    DOCKER_HOST: "unix:///var/run/docker.sock"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - echo "Перезапуск всех сервисов через docker-compose..."
+    - docker-compose down
+    - docker-compose up -d --build
+    - docker image prune -f

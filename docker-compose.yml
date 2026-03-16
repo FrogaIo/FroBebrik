@@ -1,0 +1,61 @@
+version: '3.8'
+services:
+  backend:
+    build: ./backend
+    container_name: frobebrik-backend
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./backend:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  worker:
+    build: ./backend
+    container_name: frobebrik-worker
+    command: python manage.py worker
+    depends_on:
+      - backend
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  frontend:
+    build: ./frontend
+    container_name: frobebrik-frontend
+    ports:
+      - '5173:80'
+    depends_on:
+      - backend
+
+
+services:
+  backend:
+    build:
+      context: "./backend"
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/lib/cooking-db:/app/db
+      - /var/lib/cooking-media:/app/media
+    environment:
+      PYTHONDONTWRITEBYTECODE: 1
+      PYTHONUNBUFFERED: 1
+    command: >
+      sh -c "
+      python3 manage.py makemigrations UserService RecipeService &&
+      python3 manage.py migrate &&
+      (python3 manage.py create_admin FrogaloAdmin@yandex.ru FrogaloAdmin Frogalo54321! || true) &&
+      exec python3 manage.py runserver 0.0.0.0:8000
+      "
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
